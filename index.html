@@ -1101,7 +1101,7 @@ function datesLine(ds) {
   if (!ds.length) return "";
   if (ds.length === 1) return fmtD(ds[0]);
   const y0 = ds[0].slice(0, 4), same = ds.every(d => d.slice(0, 4) === y0);
-  return (same ? fmtD(ds[0]) + "・" + ds.slice(1).map(fmtMD).join("・") : ds.map(fmtD).join("・")) + `（${ds.length}日）`;
+  return (same ? fmtD(ds[0]) + "・" + ds.slice(1).map(d => d.slice(5, 10).replace("-", ".")).join("・") : ds.map(fmtD).join("・"));
 }
 const JA_NOH = "、。，．）」』】〉》ー…・！？!?,.)]%ぁぃぅぇぉっゃゅょゎァィゥェォッャュョヮヵヶ々―—～〜", JA_OPH = "「『（【〈《(［", JA_CLOSE = "、。，．！？!?」』）】〉》)]";
 const jaKind = c => !c ? "" : /[ぁ-ゟ]/.test(c) ? "H" : /[゠-ヿｦ-ﾟ]/.test(c) && c !== "・" ? "K" : /[㐀-鿿々〆]/.test(c) ? "J" : /[0-9A-Za-z０-９Ａ-Ｚａ-ｚ×]/.test(c) ? "D" : "O";
@@ -1273,7 +1273,7 @@ const busyUI = () => !!(raf || (drag && drag.moved) || tilt || (typeof dg !== "u
 async function runJobs() { running = true; while (jobs.length) { if (jobs[0].pri >= 2 && busyUI()) { await sleep(90); continue; } const j = jobs.shift(); try { j.res(await j.fn()); } catch (e) { j.rej(e); } await sleep(0); } running = false; }
 const bakes = new Map();
 function sig(c, kind) {
-  const a = ["v16", c.title, c.organizer, c.no, c.type, c.start, c.end, c.rating, c.pal, c.motif, c.front, c._img, c.eventId, c.tag];
+  const a = ["v17", c.title, c.organizer, c.no, c.type, c.start, c.end, c.rating, c.pal, c.motif, c.front, c._img, c.eventId, c.tag];
   if (kind === "back") a.push(c.venue, c.summary, c.series, c.link, c.id, cDates(c).join(), withNames(c.with));
   return JSON.stringify(a);
 }
