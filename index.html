@@ -994,10 +994,19 @@ function loadFront(src) {
   if (frontCache.size > 24) frontCache.delete(frontCache.keys().next().value);
   return p;
 }
+let assetUrls = null;
+async function altSrcs(src) {
+  const m = /^\/_blob\/([0-9a-f]{32})$/.exec(src); if (!m) return [];
+  const id = m[1], out = [];
+  try { if (!assetUrls) assetUrls = (async () => { const a = window.claude && await window.claude.use("assets"); const r = a ? await a.list() : null; const map = new Map(); ((r && r.assets) || []).forEach(x => { if (x && x.id && x.url) map.set(x.id, x.url); }); return map; })(); const u = (await assetUrls).get(id); if (u && u !== src) out.push(u); } catch (e) {}
+  out.push("https://nazotore.github.io/img/" + id + ".jpg");
+  return out;
+}
 async function loadFront0(src) {
   let why = "";
   for (const wait of [0, 700, 1800, 4000]) { if (wait) await sleep(wait); try { const r = await fetch(src, wait ? { cache: "reload" } : undefined); if (!r.ok) throw new Error("HTTP " + r.status); return await createImageBitmap(await r.blob()); } catch (e1) { why = String((e1 && e1.message) || e1); } }
   try { return await loadImg(src); } catch (e2) { why += " / img"; }
+  for (const alt of await altSrcs(src)) { try { const r = await fetch(alt); if (r.ok) return await createImageBitmap(await r.blob()); } catch (e3) {} try { return await loadImg(alt); } catch (e4) {} }
   if (!frontWarned) { frontWarned = true; setTimeout(() => toast("カードの画像を読み込めませんでした（" + why.slice(0, 60) + "）"), 0); }
   return null;
 }
