@@ -912,6 +912,60 @@ function datesLine(ds) {
   const y0 = ds[0].slice(0, 4), same = ds.every(d => d.slice(0, 4) === y0);
   return (same ? fmtD(ds[0]) + "・" + ds.slice(1).map(fmtMD).join("・") : ds.map(fmtD).join("・")) + `（${ds.length}日）`;
 }
+const JA_NOH = "、。，．）」』】〉》ー…・！？!?,.)]%ぁぃぅぇぉっゃゅょゎァィゥェォッャュョヮヵヶ々―—～〜", JA_OPH = "「『（【〈《(［", JA_CLOSE = "、。，．！？!?」』）】〉》)]";
+const jaKind = c => !c ? "" : /[ぁ-ゟ]/.test(c) ? "H" : /[゠-ヿｦ-ﾟ]/.test(c) && c !== "・" ? "K" : /[㐀-鿿々〆]/.test(c) ? "J" : /[0-9A-Za-z０-９Ａ-Ｚａ-ｚ×]/.test(c) ? "D" : "O";
+function jaWordStarts(str) {
+  const set = new Set([0]);
+  if (SEG) { for (const p of SEG.segment(str)) set.add([...str.slice(0, p.index)].length); }
+  else { const ch = [...str]; for (let i = 1; i < ch.length; i++) if (jaKind(ch[i]) !== jaKind(ch[i - 1])) set.add(i); }
+  return set;
+}
+// petalog と同じ考え方: 文全体を見て「切ってよい所」で切る（句読点のあと・文節の頭を優先、単語の途中は避ける）。行は両端そろえ
+function jaLayout(ctx, text, TW, f) {
+  const ws = jaWordStarts(text), out = []; out.cost = 0;
+  const paras = [[]]; [...text].forEach((t, i) => { if (t === "\n") { paras.push([]); return; } paras[paras.length - 1].push({ t, w: ctx.measureText(t).width, ws: ws.has(i) }); });
+  const run = (P, j, dir, K) => { let n = 0; for (let k = dir < 0 ? j - 1 : j; k >= 0 && k < P.length; k += dir) { if (jaKind(P[k].t) !== K) break; n++; } return n; };
+  const pen = (P, j) => {
+    const a = P[j - 1].t, c = P[j].t, A = jaKind(a), C = jaKind(c), w = P[j].ws;
+    if (JA_NOH.includes(c) || JA_OPH.includes(a)) return 1000;
+    if (A === "D" && C === "D") return 1000;
+    if (JA_CLOSE.includes(a)) return 0;
+    if (JA_OPH.includes(c)) return .3;
+    if (A === "H" && (C === "J" || C === "K" || C === "D")) return .5;
+    if (A === "D") return 14;
+    if (A === "K" && C === "K") return w ? 8 : 40;
+    if (A === "H" && C === "H") return Math.min(run(P, j, -1, "H"), run(P, j, 1, "H")) < 2 ? 16 : "はをにでへもや".includes(a) ? 6 : 12;
+    if (C === "H") return run(P, j, 1, "H") < 2 || (A === "J" && run(P, j, -1, "J") < 2) ? 12 : 4;
+    if (A === C && !w) return 30;
+    return w ? 4 : 10;
+  };
+  for (const P of paras) {
+    const n = P.length; if (!n) { out.push([]); continue; }
+    const best = new Array(n + 1).fill(Infinity), from = new Array(n + 1).fill(0); best[0] = 0;
+    for (let j = 1; j <= n; j++) { let wd = 0;
+      for (let i = j - 1; i >= 0; i--) { wd += P[i].w; if (wd > TW && i < j - 1) break; if (best[i] === Infinity) continue;
+        const sl = Math.max(0, TW - wd) / f, cst = best[i] + (j === n ? (i > 0 && j - i < 4 ? 6 : 0) : sl * sl + pen(P, j));
+        if (cst < best[j]) { best[j] = cst; from[j] = i; } } }
+    out.cost += best[n]; const cuts = []; for (let j = n; j > 0; j = from[j]) cuts.unshift([from[j], j]);
+    cuts.forEach(([i, j], k) => { const ln = P.slice(i, j); if (k < cuts.length - 1 && ln.length > 1) { const sl = TW - ln.reduce((t, x) => t + x.w, 0); ln.gap = Math.max(0, Math.min(sl / (ln.length - 1), f * .22)); } out.push(ln); });
+  }
+  return out;
+}
+function jaFit(ctx, text, TW, maxH, fMax, fMin, lhR, font) {
+  const step = (fMax - fMin) / 12 || 1; let pick = null, f0 = 0, last = null;
+  for (let f = fMax; f >= fMin - 1e-6; f -= step) {
+    ctx.font = font(f); const ls = jaLayout(ctx, text, TW, f); last = { f, lines: ls };
+    if (ls.length * f * lhR > maxH) continue;
+    if (!f0) f0 = f; const sc = ls.cost + Math.round((f0 - f) / step) * 3;
+    if (!pick || sc < pick.sc) pick = { sc, f, lines: ls };
+    if (f <= f0 - 4 * step) break;
+  }
+  if (pick) return pick;
+  const cap = Math.max(1, Math.floor(maxH / (last.f * lhR))); const ls = last.lines.slice(0, cap);
+  const tail = ls[ls.length - 1]; if (tail && last.lines.length > cap) { tail.gap = 0; ctx.font = font(last.f); const ew = ctx.measureText("…").width; while (tail.length > 1 && tail.reduce((t, x) => t + x.w, 0) + ew > TW) tail.pop(); tail.push({ t: "…", w: ew }); }
+  return { f: last.f, lines: ls };
+}
+function jaDraw(ctx, lines, x, y, lh) { for (const ln of lines) { let cx = x; for (const u of ln) { ctx.fillText(u.t, cx, y); cx += u.w + (ln.gap || 0); } y += lh; } return y; }
 function drawClear(ctx, cx, cy, R, seed, date, ang = -.24, alpha = 1) {
   const S = Math.ceil(R * 2.5), m = S / 2, o = document.createElement("canvas"); o.width = o.height = S;
   const x = o.getContext("2d"), INK = "#D2382A";
@@ -967,7 +1021,7 @@ async function drawBack(ctx, c, ox, oy, W, H, bleed = 0) {
   const kick = [c.organizer, c.series].filter(Boolean).join(" ／ ");
   const rows = [["会場", c.venue], ["開催期間", isDate(c.start) || isDate(c.end) ? period(c) : ""], ["クリア日", datesLine(ds) || "\u0000"], ["一緒に", wn]].filter(r => r[1]);
   let ll = [], linkH = 0;
-  if (c.link) { ctx.font = `500 ${2.8 * u}px ${FU}`; ll = wrap(ctx, c.link, iw - 6 * u); if (ll.length > 3) { ll = ll.slice(0, 3); ll[2] = ellipsize(ctx, ll[2] + "…", iw - 6 * u); } linkH = 7.4 * u + ll.length * 4.2 * u; }
+  if (c.link) { const lf = jaFit(ctx, c.link, iw - 6 * u, 3 * 4.2 * u, 2.8 * u, 2.5 * u, 1.5, z => `500 ${z}px ${FU}`); ll = lf.lines; ll.f = lf.f; linkH = 7.4 * u + ll.length * ll.f * 1.5; }
   // right column next to the picture; draw=false only measures
   const column = (tw, draw) => {
     const rx = ix + tw + 4 * u, rw = iw - tw - 4 * u; let ry = ty - .3 * u;
@@ -988,8 +1042,8 @@ async function drawBack(ctx, c, ox, oy, W, H, bleed = 0) {
     }
     return ry;
   };
-  const storyH = z => { if (!c.summary) return 0; ctx.font = `500 ${z}px ${FU}`; return 4.6 * u + wrap(ctx, c.summary, iw).length * z * 1.6; };
-  const total = tw => Math.max(ty + tw * RATIO, column(tw, false)) + 4 * u + storyH(3.5 * u) + (linkH ? linkH + 2.4 * u : 0);
+  const storyH = z => { if (!c.summary) return 0; ctx.font = `500 ${z}px ${FU}`; return 4.6 * u + jaLayout(ctx, c.summary, iw, z).length * z * 1.62; };
+  const total = tw => Math.max(ty + tw * RATIO, column(tw, false)) + 4 * u + storyH(3.2 * u) + (linkH ? linkH + 2.4 * u : 0);
   let tw = 25 * u; for (const k of [42, 39, 36, 33, 30, 27, 25]) if (total(k * u) <= footTop - 2.4 * u) { tw = k * u; break; }
   const th = tw * RATIO;
   if (art) {
@@ -1002,9 +1056,8 @@ async function drawBack(ctx, c, ox, oy, W, H, bleed = 0) {
     if (maxH > 3 * u) {
       ctx.font = `700 ${2.6 * u}px ${FN}`; ctx.fillStyle = AC; spaced(ctx, "STORY", .55 * u, ix, y);
       ctx.fillStyle = "rgba(42,51,80,.3)"; ctx.fillRect(ix + 13 * u, y + 1.25 * u, iw - 13 * u, Math.max(1, .18 * u));
-      const sf = fitText(ctx, c.summary, z => `500 ${z}px ${FU}`, iw, maxH, [3.9, 3.7, 3.5, 3.3, 3.1, 2.9, 2.7].map(x => x * u), 1.6);
-      ctx.font = `500 ${sf.size}px ${FU}`; ctx.fillStyle = "#2C3346"; y = top;
-      for (const ln of sf.lines) { ctx.fillText(ln, ix, y); y += sf.size * 1.6; }
+      const sf = jaFit(ctx, c.summary, iw, maxH, 3.4 * u, 2.6 * u, 1.62, z => `500 ${z}px ${FU}`);
+      ctx.font = `500 ${sf.f}px ${FU}`; ctx.fillStyle = "#2C3346"; y = jaDraw(ctx, sf.lines, ix, top, sf.f * 1.62);
     }
   }
   if (linkH) {
@@ -1013,8 +1066,7 @@ async function drawBack(ctx, c, ox, oy, W, H, bleed = 0) {
     ctx.strokeStyle = AC; ctx.lineWidth = Math.max(1, .3 * u);
     const cx = ix + 3 * u, cy = linkY + 3.3 * u; rr(ctx, cx, cy - .9 * u, 3.2 * u, 1.8 * u, .9 * u); ctx.stroke(); rr(ctx, cx + 2 * u, cy - .9 * u, 3.2 * u, 1.8 * u, .9 * u); ctx.stroke();
     ctx.font = `700 ${2.6 * u}px ${FU}`; ctx.fillStyle = AC; ctx.fillText("つながる物語", ix + 9.4 * u, linkY + 2.1 * u);
-    ctx.font = `500 ${2.8 * u}px ${FU}`; ctx.fillStyle = "#2C3346"; let ly = linkY + 6 * u;
-    for (const ln of ll) { ctx.fillText(ln, ix + 3 * u, ly); ly += 4.2 * u; }
+    ctx.font = `500 ${ll.f}px ${FU}`; ctx.fillStyle = "#2C3346"; jaDraw(ctx, ll, ix + 3 * u, linkY + 6 * u, ll.f * 1.5);
   }
   const r = Math.max(0, Math.min(5, +c.rating || 0));
   if (r) { ctx.textBaseline = "top"; ctx.font = `700 ${3 * u}px ${FU}`; ctx.textAlign = "left"; let sx = ix + tw + 4 * u; const sw = ctx.measureText("★").width; for (let k = 1; k <= 5; k++) { ctx.fillStyle = k <= r ? "#C9960B" : "rgba(201,150,11,.25)"; ctx.fillText("★", sx, colEnd - .4 * u); sx += sw; } }
@@ -1029,7 +1081,7 @@ const busyUI = () => !!(raf || (drag && drag.moved) || tilt || (typeof dg !== "u
 async function runJobs() { running = true; while (jobs.length) { if (jobs[0].pri >= 2 && busyUI()) { await sleep(90); continue; } const j = jobs.shift(); try { j.res(await j.fn()); } catch (e) { j.rej(e); } await sleep(0); } running = false; }
 const bakes = new Map();
 function sig(c, kind) {
-  const a = ["v10", c.title, c.organizer, c.no, c.type, c.start, c.end, c.rating, c.pal, c.motif, c.front, c._img, c.eventId, c.tag];
+  const a = ["v11", c.title, c.organizer, c.no, c.type, c.start, c.end, c.rating, c.pal, c.motif, c.front, c._img, c.eventId, c.tag];
   if (kind === "back") a.push(c.venue, c.summary, c.series, c.link, c.id, cDates(c).join(), withNames(c.with));
   return JSON.stringify(a);
 }
