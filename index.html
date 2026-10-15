@@ -2017,6 +2017,8 @@ const PrintCard = {
     x.drawImage(bk, bx - bl, fy - bl);
     x.strokeStyle = "#111"; x.lineWidth = Math.max(3, Math.round(.25 * m)); x.lineCap = "butt"; const o = 2.2 * m, l = 3 * m; x.beginPath();
     for (const [cx, cy, sx, sy] of [[fx, fy, -1, -1], [fx + cw, fy, 1, -1], [fx, fy + ch, -1, 1], [fx + cw, fy + ch, 1, 1]]) { if (sx < 0) { x.moveTo(cx - o, cy); x.lineTo(cx - o - l, cy); } x.moveTo(cx, cy + sy * o); x.lineTo(cx, cy + sy * (o + l)); }
+    // 折り目側の角にもトンボ（表の塗り足しの外〜裏の塗り足しの手前、折り線をまたぐ短い線）
+    for (const yy of [fy, fy + ch]) { x.moveTo(fx + cw + bl + .25 * m, yy); x.lineTo(bx - bl - .25 * m, yy); }
     x.stroke();
     x.strokeStyle = "#222"; x.lineWidth = Math.max(3, Math.round(.25 * m)); x.setLineDash([Math.round(1.6 * m), Math.round(.9 * m)]); x.beginPath(); x.moveTo(fold, 0); x.lineTo(fold, H); x.stroke(); x.setLineDash([]);
     const UI = '"Zen Kaku Gothic New","Hiragino Sans",sans-serif';
