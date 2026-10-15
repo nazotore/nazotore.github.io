@@ -108,6 +108,8 @@ async function onSession(session) {
   if (uid === u.id) return;
   uid = u.id; email = u.email || ""; setStatus("sync");
   try { await mergeOnce(); await flush(); await pull(); subscribeLive(); } catch (e) { setStatus(navigator.onLine === false ? "offline" : "err"); }
+  repaint();
+  if (ov) setTimeout(closeUI, 900);
 }
 if (sb) {
   sb.auth.onAuthStateChange((ev, session) => { setTimeout(() => onSession(session), 0); });
@@ -174,7 +176,8 @@ css.textContent = `.ac-ov{position:fixed;inset:0;z-index:110;background:rgba(18,
 document.head.appendChild(css);
 const STXT = { off: "ログインしていません", sync: "同期中…", ok: "同期済み", err: "同期できませんでした", offline: "オフライン（つながったら送ります）" };
 let ov = null, offDraw = null;
-function closeUI() { if (offDraw) { offDraw(); offDraw = null; } if (ov) { ov.remove(); ov = null; } }
+const repaint = () => setTimeout(() => { try { window.__nzRefresh && window.__nzRefresh(); window.dispatchEvent(new Event("resize")); } catch (e) {} }, 60);
+function closeUI() { if (offDraw) { offDraw(); offDraw = null; } if (ov) { ov.remove(); ov = null; repaint(); } }
 function openUI(mode) {
   closeUI(); ov = document.createElement("div"); ov.className = "ac-ov";
   ov.addEventListener("click", e => { if (e.target === ov) closeUI(); });
@@ -274,7 +277,8 @@ svg.i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke
 .hdr h1{margin:0;font:900 19px/1.1 var(--f-body);letter-spacing:.06em;white-space:nowrap}
 .hdr h1.logo{display:flex;align-items:center;gap:6px;font:900 23px/1 var(--f-body);letter-spacing:.01em;color:var(--navy)}
 .lg-m{width:34px;height:34px;border-radius:10px;background:var(--navy);color:#fff;display:grid;place-items:center;font:900 21px/1 var(--f-body);box-shadow:0 3px 8px rgba(34,44,69,.25)}
-.lg-t{padding-top:1px}
+.lg-t{padding-top:1px;white-space:nowrap}
+.hdr h1.logo{flex:none}
 .cl-btn{position:relative}
 .cl-btn i{position:absolute;right:7px;top:8px;width:8px;height:8px;border-radius:50%;background:#C3CAD6;box-shadow:0 0 0 2px #fff}
 .cl-btn.on i{background:#17955A}
@@ -329,7 +333,7 @@ img.instant{transition:none!important}
 .refl{position:absolute;left:0;top:calc(100% + 6px);width:100%;aspect-ratio:63/88;border-radius:4.8%/3.44%;transform:scaleY(-1);-webkit-mask-image:linear-gradient(to top,rgba(0,0,0,.34),rgba(0,0,0,0) 36%);mask-image:linear-gradient(to top,rgba(0,0,0,.34),rgba(0,0,0,0) 36%);pointer-events:none;opacity:0;transition:opacity .3s}
 .slot.flip .refl{opacity:0!important}
 .holo{position:absolute;inset:0;pointer-events:none;visibility:hidden;border-radius:inherit;overflow:hidden}
-.slot.hot .holo,.big .holo{visibility:visible}
+.slot.hot .holo,.big .holo{visibility:hidden;display:none}
 .shine{position:absolute;top:-10%;bottom:-10%;left:-60%;width:220%;background:repeating-linear-gradient(112deg,rgba(255,95,121,0) 0%,rgba(255,95,121,.5) 3.5%,rgba(255,190,100,.5) 7%,rgba(245,235,100,.45) 10.5%,rgba(110,240,170,.45) 14%,rgba(85,195,255,.5) 17.5%,rgba(170,135,255,.5) 21%,rgba(255,95,121,0) 25%);opacity:.17;will-change:transform}
 .glare{position:absolute;inset:0;background:radial-gradient(circle at var(--gx,50%) var(--gy,18%),rgba(255,255,255,.2),rgba(255,255,255,0) 58%)}
 .sweep{position:absolute;top:-20%;bottom:-20%;left:0;width:40%;background:linear-gradient(100deg,rgba(255,255,255,0),rgba(255,255,255,.22) 50%,rgba(255,255,255,0));transform:translateX(-160%) skewX(-12deg);opacity:0}
@@ -563,7 +567,7 @@ img.instant{transition:none!important}
 /* card back (DOM) */
 .tc.big{position:relative;width:100%;aspect-ratio:63/88;container-type:inline-size;transform-style:preserve-3d;transform:rotateX(var(--rx,0deg)) rotateY(calc(var(--ry,0deg) + var(--flip,0deg)));transition:transform .6s cubic-bezier(.2,.75,.2,1)}
 .tc.big.flipped{--flip:180deg}
-.tc.big.tilting{transition:transform .08s linear}
+.tc.big.tilting{transition:none}
 .tc.big .front{box-shadow:0 18px 44px rgba(20,32,60,.3)}
 .tc.big .back{box-shadow:0 18px 44px rgba(20,32,60,.3)}
 .bk-outer{position:absolute;inset:0;padding:3.3cqw;background:linear-gradient(160deg,var(--a),var(--b))}
@@ -593,7 +597,7 @@ img.instant{transition:none!important}
 .m-sheet{position:relative;display:flex;flex-direction:column;align-items:center;gap:12px;width:100%;max-width:440px}
 .m-top{align-self:stretch;display:flex;justify-content:space-between;align-items:center}
 .m-no{font:600 12px var(--f-num);letter-spacing:.16em;color:var(--muted)}
-.m-card{width:min(76vw,340px,calc((100svh - 230px) * .716));perspective:1100px;touch-action:none}
+.m-card{width:min(76vw,340px,calc((100svh - 230px) * .716));perspective:1100px;touch-action:pan-y}
 .m-card.flipped-wrap{touch-action:pan-y}
 .m-hint{margin:0;font-size:12px;color:var(--muted)}
 .m-actions{display:flex;flex-wrap:wrap;justify-content:center;gap:8px}
@@ -764,7 +768,7 @@ img.instant{transition:none!important}
   <div class="m-sheet">
     <div class="m-top"><span class="m-no" id="mNo"></span><button class="ibtn" data-mclose aria-label="閉じる"><svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
     <div class="m-card" id="mWrap"><div class="tc big" id="mCard"></div></div>
-    <p class="m-hint" id="mHint">タップで裏返す・なぞると光る</p>
+    <p class="m-hint" id="mHint">タップ・左右に指でめくって裏返す</p>
     <div class="m-actions">
       <button class="btn primary" id="mFlip">裏返す</button>
       <button class="btn" id="mEdit">編集</button>
@@ -1254,7 +1258,7 @@ async function drawBack(ctx, c, ox, oy, W, H, bleed = 0) {
     rr(ctx, ix, linkY, iw, linkH, 1.8 * u); ctx.fillStyle = "rgba(42,51,80,.065)"; ctx.fill();
     ctx.strokeStyle = AC; ctx.lineWidth = Math.max(1, .3 * u);
     const cx = ix + 3 * u, cy = linkY + 3.3 * u; rr(ctx, cx, cy - .9 * u, 3.2 * u, 1.8 * u, .9 * u); ctx.stroke(); rr(ctx, cx + 2 * u, cy - .9 * u, 3.2 * u, 1.8 * u, .9 * u); ctx.stroke();
-    ctx.font = `700 ${2.6 * u}px ${FU}`; ctx.fillStyle = AC; ctx.fillText("つながる物語", ix + 9.4 * u, linkY + 2.1 * u);
+    ctx.font = `700 ${2.6 * u}px ${FU}`; ctx.fillStyle = AC; ctx.fillText("つながる物語", ix + 9.4 * u, midY(ctx, "つながる物語", cy)); ctx.textBaseline = "top";
     ctx.font = `500 ${ll.f}px ${FU}`; ctx.fillStyle = "#2C3346"; jaDraw(ctx, ll, ix + 3 * u, linkY + 6 * u, ll.f * 1.5);
   }
   const r = Math.max(0, Math.min(5, +c.rating || 0));
@@ -1270,7 +1274,7 @@ const busyUI = () => !!(raf || (drag && drag.moved) || tilt || (typeof dg !== "u
 async function runJobs() { running = true; while (jobs.length) { if (jobs[0].pri >= 2 && busyUI()) { await sleep(90); continue; } const j = jobs.shift(); try { j.res(await j.fn()); } catch (e) { j.rej(e); } await sleep(0); } running = false; }
 const bakes = new Map();
 function sig(c, kind) {
-  const a = ["v15", c.title, c.organizer, c.no, c.type, c.start, c.end, c.rating, c.pal, c.motif, c.front, c._img, c.eventId, c.tag];
+  const a = ["v16", c.title, c.organizer, c.no, c.type, c.start, c.end, c.rating, c.pal, c.motif, c.front, c._img, c.eventId, c.tag];
   if (kind === "back") a.push(c.venue, c.summary, c.series, c.link, c.id, cDates(c).join(), withNames(c.with));
   return JSON.stringify(a);
 }
@@ -1874,29 +1878,32 @@ $$("[data-mclose]").forEach(el => el.addEventListener("click", closeModal));
 $("#mFlip").onclick = flipModal;
 $("#mEdit").onclick = () => { const c = S.cards.find(x => x.id === modalId); closeModal(); if (c) openCardForm(c); };
 $("#mPrint").onclick = () => { const c = S.cards.find(x => x.id === modalId); if (c) openPrintSheet(c); };
-let tilt = null;
-function resetTilt() { tiltEv = null; mCard.classList.remove("tilting"); ["--rx", "--ry"].forEach(k => mCard.style.removeProperty(k)); mCard.style.setProperty("--gx", "50%"); mCard.style.setProperty("--gy", "18%"); const sh = $(".shine", mCard); if (sh) sh.style.transform = ""; }
-mWrap.addEventListener("pointerdown", e => { if (e.target.closest(".bk-sum")) return; tilt = { x: e.clientX, y: e.clientY, moved: false, id: e.pointerId }; if (!mCard.classList.contains("flipped")) tiltTo(e); });
+let tilt = null, tiltEv = null;
+function resetTilt() { tiltEv = null; mCard.classList.remove("tilting"); ["--rx", "--ry"].forEach(k => mCard.style.removeProperty(k)); }
+mWrap.addEventListener("pointerdown", e => { if (e.button > 0) return; tilt = { x: e.clientX, y: e.clientY, moved: false, id: e.pointerId, t: performance.now() }; try { mWrap.setPointerCapture(e.pointerId); } catch (_) {} });
 mWrap.addEventListener("pointermove", e => {
-  if (e.pointerType === "mouse" && !tilt && !mCard.classList.contains("flipped")) { tiltTo(e); return; }
   if (!tilt || e.pointerId !== tilt.id) return;
-  if (Math.hypot(e.clientX - tilt.x, e.clientY - tilt.y) > 8) tilt.moved = true;
-  if (!mCard.classList.contains("flipped")) tiltTo(e);
-});
-mWrap.addEventListener("pointerup", e => { if (tilt && !tilt.moved && e.pointerId === tilt.id) flipModal(); tilt = null; if (e.pointerType !== "mouse") setTimeout(resetTilt, 60); });
-mWrap.addEventListener("pointercancel", () => { tilt = null; resetTilt(); });
-mWrap.addEventListener("pointerleave", e => { if (e.pointerType === "mouse") resetTilt(); });
-mWrap.addEventListener("contextmenu", e => e.preventDefault());
-let tiltRaf = 0, tiltEv = null;
-function tiltTo(e) { tiltEv = { clientX: e.clientX, clientY: e.clientY }; if (!tiltRaf) tiltRaf = requestAnimationFrame(() => { tiltRaf = 0; if (tiltEv) tiltApply(tiltEv); }); }
-function tiltApply(e) {
-  const r = mWrap.getBoundingClientRect();
-  const px = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)), py = Math.max(0, Math.min(1, (e.clientY - r.top) / r.height));
+  const dx = e.clientX - tilt.x, dy = e.clientY - tilt.y;
+  if (!tilt.moved) { if (Math.abs(dx) > 6 && Math.abs(dx) > Math.abs(dy)) tilt.moved = true; else return; }
   mCard.classList.add("tilting");
-  mCard.style.setProperty("--rx", ((.5 - py) * 18).toFixed(2) + "deg"); mCard.style.setProperty("--ry", ((px - .5) * 22).toFixed(2) + "deg");
-  mCard.style.setProperty("--gx", (px * 100).toFixed(1) + "%"); mCard.style.setProperty("--gy", (py * 100).toFixed(1) + "%");
-  const sh = $(".shine", mCard); if (sh) sh.style.transform = `translate3d(${((px - .5) * 40).toFixed(1)}%,0,0)`;
+  const w = mWrap.getBoundingClientRect().width || 300, deg = Math.max(-180, Math.min(180, dx / w * 200));
+  mCard.style.setProperty("--ry", deg.toFixed(1) + "deg");
+});
+function endTurn(e, cancel) {
+  if (!tilt || (e && e.pointerId !== tilt.id)) return;
+  const dx = e ? e.clientX - tilt.x : 0, dt = performance.now() - tilt.t, moved = tilt.moved; tilt = null;
+  const w = mWrap.getBoundingClientRect().width || 300, deg = dx / w * 200, fast = Math.abs(dx) > 30 && dt < 260;
+  if (!moved) { if (!cancel) flipModal(); return; }
+  mCard.classList.remove("tilting");
+  if (!cancel && (Math.abs(deg) > 70 || fast)) {
+    // keep turning in the finger's direction, then settle on the other side
+    mCard.style.setProperty("--ry", (deg > 0 ? 180 : -180) + "deg");
+    setTimeout(() => { mCard.classList.add("tilting"); mCard.style.transition = "none"; mCard.style.removeProperty("--ry"); mCard.classList.toggle("flipped"); mWrap.classList.toggle("flipped-wrap", mCard.classList.contains("flipped")); void mCard.offsetWidth; mCard.style.transition = ""; mCard.classList.remove("tilting"); }, 420);
+  } else mCard.style.removeProperty("--ry");
 }
+mWrap.addEventListener("pointerup", e => endTurn(e, false));
+mWrap.addEventListener("pointercancel", e => endTurn(e, true));
+mWrap.addEventListener("contextmenu", e => e.preventDefault());
 
 /* ---------- reorder ---------- */
 const roOv = $("#ro"), roSc = $("#roSc"), roGrid = $("#roGrid");
@@ -2267,6 +2274,7 @@ setTab(TABS.some(t => t[0] === start) ? start : "shelf");
 boot();
 if (window.__cloud) {
   window.__cloud.onChange(() => renderHeader());
+  window.__nzRefresh = () => { renderHeader(); sizeStage(); shelfSig = ""; render(); };
   setTimeout(() => { try { if (!window.__cloud.loggedIn && !localStorage.getItem("nazotore.v1.askedLogin")) { localStorage.setItem("nazotore.v1.askedLogin", "1"); window.__cloud.openUI("login"); } } catch (e) {} }, 2500);
 }
 })();
