@@ -779,7 +779,7 @@ const evHay = new Map();
 const evHayOf = e => { let h = evHay.get(e.id); if (h === undefined) { h = nz([e.t, e.o, e.sr, e.a, e.k, (e.l || []).join(" "), e.y].join(" ")); evHay.set(e.id, h); } return h; };
 const cardHay = c => nz([c.title, c.organizer, c.series, c.link, c.venue, c.type, c.summary, withNames(c.with), c.yomi, (EVMAP.get(c.eventId) || {}).y].join(" "));
 const SEG = (() => { try { return new Intl.Segmenter("ja", { granularity: "word" }); } catch (e) { return null; } })();
-const NOSTART = "、。，．・：；？！ー－）」』】〕〉》’”ゝゞヽヾぁぃぅぇぉっゃゅょゎァィゥェォッャュョヮヵヶ々～…‥!?),.:;]}";
+const NOSTART = "、。，．・：；？！ー－―—）」』】〕〉》’”ゝゞヽヾぁぃぅぇぉっゃゅょゎァィゥェォッャュョヮヵヶ々～…‥!?),.:;]}";
 const NOEND = "（「『【〔〈《‘“([{";
 function wrap(ctx, text, maxW) {
   const toks = SEG ? [...SEG.segment(String(text))].map(x => x.segment).reduce((a, t) => { const l = a[a.length - 1]; if (l !== undefined && /^[0-9０-９#＃]+$/.test(l) && /^[^\s]/.test(t)) a[a.length - 1] = l + t; else a.push(t); return a; }, []) : (String(text).match(/[A-Za-z0-9'’&.\-+:#]+|\s+|[\s\S]/gu) || []);
@@ -790,7 +790,7 @@ function wrap(ctx, text, maxW) {
     if (ws && !cur) continue;
     if (!cur || ctx.measureText(cur + t).width <= maxW) { cur += t; continue; }
     if (ws) { lines.push(cur.trimEnd()); cur = ""; continue; }
-    if (t.length === 1 && NOSTART.includes(t)) { cur += t; continue; }
+    if (NOSTART.includes(t[0])) { if (t.length === 1 && "、。，．,.".includes(t)) { cur += t; continue; } const k = [...cur]; if (k.length > 1) { const last = k.pop(); lines.push(k.join("").trimEnd()); cur = last + t; continue; } }
     let carry = ""; const last = cur.slice(-1);
     if (NOEND.includes(last) && cur.length > 1) { carry = last; cur = cur.slice(0, -1); }
     lines.push(cur.trimEnd()); cur = carry + t;
@@ -911,7 +911,7 @@ function datesLine(ds) {
   const y0 = ds[0].slice(0, 4), same = ds.every(d => d.slice(0, 4) === y0);
   return (same ? fmtD(ds[0]) + "・" + ds.slice(1).map(fmtMD).join("・") : ds.map(fmtD).join("・")) + `（${ds.length}日）`;
 }
-function drawClear(ctx, cx, cy, R, seed, date) {
+function drawClear(ctx, cx, cy, R, seed, date, ang = -.24, alpha = 1) {
   const S = Math.ceil(R * 2.5), m = S / 2, o = document.createElement("canvas"); o.width = o.height = S;
   const x = o.getContext("2d"), INK = "#D2382A";
   x.strokeStyle = x.fillStyle = INK; x.textAlign = "center"; x.textBaseline = "middle";
@@ -924,9 +924,10 @@ function drawClear(ctx, cx, cy, R, seed, date) {
   x.font = `700 ${R * .15}px ${FN}`; spacedC(x, "MISSION", R * .04, m, m - R * .43);
   x.font = `700 ${R * (date ? .15 : .13)}px ${FN}`; spacedC(x, date || "COMPLETE", R * (date ? .01 : .04), m, m + R * .45);
   x.globalCompositeOperation = "destination-out"; const rnd = rng(seed);
-  for (let i = 0; i < 130; i++) { const a = rnd() * Math.PI * 2, d = Math.sqrt(rnd()) * R * 1.05, s = R * (.006 + rnd() * .03); x.globalAlpha = .35 + rnd() * .65; x.beginPath(); x.arc(m + Math.cos(a) * d, m + Math.sin(a) * d, s, 0, Math.PI * 2); x.fill(); }
+  for (let i = 0; i < 260; i++) { const a = rnd() * Math.PI * 2, d = Math.sqrt(rnd()) * R * 1.05, s = R * (.006 + rnd() * .03); x.globalAlpha = .35 + rnd() * .65; x.beginPath(); x.arc(m + Math.cos(a) * d, m + Math.sin(a) * d, s, 0, Math.PI * 2); x.fill(); }
+  { const a = rnd() * Math.PI * 2, gx = Math.cos(a) * S * .5, gy = Math.sin(a) * S * .5, g = x.createLinearGradient(m - gx, m - gy, m + gx, m + gy); g.addColorStop(0, "rgba(0,0,0,0)"); g.addColorStop(.55, "rgba(0,0,0,.05)"); g.addColorStop(1, "rgba(0,0,0,.7)"); x.globalAlpha = 1; x.fillStyle = g; x.fillRect(0, 0, S, S); }
   for (let i = 0; i < 6; i++) { const y0 = m + (rnd() - .5) * R * 1.8; x.globalAlpha = .25 + rnd() * .3; x.fillRect(m - R * 1.2, y0, R * 2.4, R * (.01 + rnd() * .025)); }
-  ctx.save(); ctx.translate(cx, cy); ctx.rotate(-.24); ctx.drawImage(o, -m, -m); ctx.restore();
+  ctx.save(); ctx.globalAlpha = alpha; ctx.globalCompositeOperation = "multiply"; ctx.translate(cx, cy); ctx.rotate(ang); ctx.drawImage(o, -m, -m); ctx.restore();
   o.width = o.height = 0;
 }
 function spacedC(x, t, sp, cx, cy) { const ws = [...t].map(ch => x.measureText(ch).width), tot = ws.reduce((a, b) => a + b, 0) + sp * (ws.length - 1); let px = cx - tot / 2; const al = x.textAlign; x.textAlign = "left"; [...t].forEach((ch, i) => { x.fillText(ch, px, cy); px += ws[i] + sp; }); x.textAlign = al; }
@@ -951,10 +952,11 @@ async function drawBack(ctx, c, ox, oy, W, H, bleed = 0) {
   ctx.fillStyle = "#F7F5F0"; ctx.fillRect(ox - bleed, oy - bleed, W + 2 * bleed, H + 2 * bleed);
   const fx = ox + 4 * u, fy = oy + 4 * u, fw = W - 8 * u, fh = H - 8 * u;
   ctx.strokeStyle = "rgba(27,35,56,.17)"; ctx.lineWidth = Math.max(1, .22 * u); rr(ctx, fx, fy, fw, fh, 2.4 * u); ctx.stroke();
-  const ix = fx + 4.2 * u, iw = fw - 8.4 * u, footTop = fy + fh - 18 * u;
+  const ix = fx + 4.2 * u, iw = fw - 8.4 * u, footTop = fy + fh - 2.2 * u;
   ctx.textBaseline = "top"; ctx.textAlign = "left";
   let y = fy + 4 * u;
-  ctx.fillStyle = "#7A8193"; ctx.font = `600 ${2.9 * u}px ${FN}`; spaced(ctx, c.no ? "No." + pad3(c.no) : (c.tag || ""), .25 * u, ix, y);
+  const lw0 = drawLogoMark(ctx, ix, y + 1.6 * u, 3.6 * u, INK); ctx.textBaseline = "top"; ctx.textAlign = "left";
+  ctx.fillStyle = "#7A8193"; ctx.font = `600 ${2.7 * u}px ${FN}`; spaced(ctx, c.no ? "No." + pad3(c.no) : (c.tag || ""), .25 * u, lw0 + 2.6 * u, y + .3 * u);
   if (c.type) { ctx.font = `700 ${2.5 * u}px ${FU}`; const t = ellipsize(ctx, c.type, 30 * u), tw = ctx.measureText(t).width; rr(ctx, ix + iw - tw - 4 * u, y - .6 * u, tw + 4 * u, 4.4 * u, 2.2 * u); ctx.strokeStyle = "rgba(27,35,56,.3)"; ctx.lineWidth = Math.max(1, .2 * u); ctx.stroke(); ctx.fillStyle = "#5C6479"; ctx.fillText(t, ix + iw - tw - 2 * u, y + .2 * u); }
   y += 6.4 * u; const ty = y;
   const ds = cDates(c), wn = withNames(c.with);
@@ -965,9 +967,10 @@ async function drawBack(ctx, c, ox, oy, W, H, bleed = 0) {
   // right column next to the picture; draw=false only measures
   const column = (tw, draw) => {
     const rx = ix + tw + 4 * u, rw = iw - tw - 4 * u; let ry = ty - .3 * u;
-    if (kick) { ctx.font = `700 ${2.7 * u}px ${FU}`; let ks = wrap(ctx, kick, rw); if (ks.length > 2) { ks = ks.slice(0, 2); ks[1] = ellipsize(ctx, ks[1] + "…", rw); } for (const ln of ks) { if (draw) { ctx.fillStyle = "#5C6479"; ctx.fillText(ln, rx, ry); } ry += 3.9 * u; } ry += .9 * u; }
+    if (kick) { let kz = 2.7 * u; for (const z of [2.7, 2.5, 2.3]) { kz = z * u; ctx.font = `700 ${kz}px ${FU}`; if (ctx.measureText(kick).width <= rw) break; } let ks = wrap(ctx, kick, rw); if (ks.length > 2) { ks = ks.slice(0, 2); ks[1] = ellipsize(ctx, ks[1] + "…", rw); } for (const ln of ks) { if (draw) { ctx.fillStyle = "#5C6479"; ctx.fillText(ln, rx, ry); } ry += kz * 1.45; } ry += .9 * u; }
     const ttl = c.title || "（タイトル未入力）"; let tf = null;
-    for (const z of [5.4, 4.9, 4.4, 4, 3.7].map(x => x * u)) { ctx.font = `900 ${z}px ${FU}`; const ls = wrap(ctx, ttl, rw); if (ls.length === 1 || (ls.length === 2 && z <= 4.9 * u)) { tf = { size: z, lines: ls }; break; } }
+    const tryT = (zs, ok) => { for (const z of zs.map(x => x * u)) { ctx.font = `900 ${z}px ${FU}`; const ls = wrap(ctx, ttl, rw); if (ok(ls)) return { size: z, lines: ls }; } return null; };
+    tf = tryT([5.4, 4.9, 4.4, 4, 3.8], ls => ls.length === 1) || tryT([4.9, 4.4, 4, 3.7], ls => ls.length === 2 && /\s/.test(ttl.charAt(ls[0].length))) || tryT([4.9, 4.4, 4, 3.7], ls => ls.length === 2);
     if (!tf) tf = fitText(ctx, ttl, z => `900 ${z}px ${FU}`, rw, 18.5 * u, [4, 3.7, 3.4].map(x => x * u), 1.22, 3);
     ctx.font = `900 ${tf.size}px ${FU}`; for (const ln of tf.lines) { if (draw) { ctx.fillStyle = INK; ctx.fillText(ln, rx, ry); } ry += tf.size * 1.22; }
     ry += 1.4 * u; if (draw) { ctx.fillStyle = AC; ctx.fillRect(rx, ry, 8 * u, Math.max(1, .6 * u)); } ry += 3.2 * u;
@@ -981,26 +984,33 @@ async function drawBack(ctx, c, ox, oy, W, H, bleed = 0) {
     return ry;
   };
   const storyH = z => { if (!c.summary) return 0; ctx.font = `500 ${z}px ${FU}`; return 4.6 * u + wrap(ctx, c.summary, iw).length * z * 1.6; };
-  const total = tw => Math.max(ty + tw * RATIO, column(tw, false)) + 4 * u + storyH(3.5 * u) + (linkH ? linkH + 2.4 * u : 0);
-  let tw = 25 * u; for (const k of [40, 37, 34, 31, 28, 25]) if (total(k * u) <= footTop - 2.4 * u) { tw = k * u; break; }
+  const total = tw => Math.max(ty + tw * RATIO, column(tw, false)) + 4 * u + storyH(3.8 * u) + (linkH ? linkH + 2.4 * u : 0);
+  let tw = 25 * u; for (const k of [42, 39, 36, 33, 30, 27, 25]) if (total(k * u) <= footTop - 2.4 * u) { tw = k * u; break; }
   const th = tw * RATIO;
   if (art) {
     ctx.save(); ctx.shadowColor = "rgba(20,26,44,.22)"; ctx.shadowBlur = 1.6 * u; ctx.shadowOffsetY = .6 * u; rr(ctx, ix, ty, tw, th, 1.6 * u); ctx.fillStyle = "#fff"; ctx.fill(); ctx.restore();
     ctx.save(); rr(ctx, ix, ty, tw, th, 1.6 * u); ctx.clip(); cover(ctx, art, ix, ty, tw, th); ctx.restore();
   }
-  y = Math.max(ty + th, column(tw, true)) + 4 * u;
+  const colEnd = column(tw, true); y = Math.max(ty + th, colEnd + (c.rating ? 4.5 * u : 0)) + 4 * u;
   if (c.summary) {
     const top = y + 4.6 * u, maxH = footTop - 2.4 * u - top - (linkH ? linkH + 2.4 * u : 0);
     if (maxH > 3 * u) {
       ctx.font = `700 ${2.6 * u}px ${FN}`; ctx.fillStyle = AC; spaced(ctx, "STORY", .55 * u, ix, y);
       ctx.fillStyle = "rgba(42,51,80,.3)"; ctx.fillRect(ix + 13 * u, y + 1.25 * u, iw - 13 * u, Math.max(1, .18 * u));
-      const sf = fitText(ctx, c.summary, z => `500 ${z}px ${FU}`, iw, maxH, [3.9, 3.7, 3.5, 3.3, 3.1, 2.9, 2.7].map(x => x * u), 1.6);
+      const sf = fitText(ctx, c.summary, z => `500 ${z}px ${FU}`, iw, maxH, [4.3, 4.1, 3.9, 3.7, 3.5, 3.3, 3.1, 2.9, 2.7].map(x => x * u), 1.6);
       ctx.font = `500 ${sf.size}px ${FU}`; ctx.fillStyle = "#2C3346"; y = top;
       for (const ln of sf.lines) { ctx.fillText(ln, ix, y); y += sf.size * 1.6; }
     }
   }
+  { const memoTop = y + 3 * u, memoBot = footTop - (linkH ? linkH + 2.6 * u : 0);
+    if (memoBot - memoTop >= 12 * u) {
+      ctx.textBaseline = "top"; ctx.textAlign = "left"; ctx.font = `700 ${2.6 * u}px ${FN}`; ctx.fillStyle = AC; spaced(ctx, "MEMO", .55 * u, ix, memoTop);
+      ctx.strokeStyle = "rgba(42,51,80,.28)"; ctx.lineWidth = Math.max(1, .18 * u); ctx.setLineDash([.7 * u, .9 * u]);
+      for (let ly = memoTop + 7.5 * u; ly <= memoBot - 1 * u; ly += 6.4 * u) { ctx.beginPath(); ctx.moveTo(ix, ly); ctx.lineTo(ix + iw, ly); ctx.stroke(); }
+      ctx.setLineDash([]);
+    } }
   if (linkH) {
-    const linkY = Math.min(y + 1.8 * u, footTop - 2.4 * u - linkH);
+    const linkY = footTop - linkH;
     rr(ctx, ix, linkY, iw, linkH, 1.8 * u); ctx.fillStyle = "rgba(42,51,80,.065)"; ctx.fill();
     ctx.strokeStyle = AC; ctx.lineWidth = Math.max(1, .3 * u);
     const cx = ix + 3 * u, cy = linkY + 3.3 * u; rr(ctx, cx, cy - .9 * u, 3.2 * u, 1.8 * u, .9 * u); ctx.stroke(); rr(ctx, cx + 2 * u, cy - .9 * u, 3.2 * u, 1.8 * u, .9 * u); ctx.stroke();
@@ -1008,14 +1018,10 @@ async function drawBack(ctx, c, ox, oy, W, H, bleed = 0) {
     ctx.font = `500 ${2.8 * u}px ${FU}`; ctx.fillStyle = "#2C3346"; let ly = linkY + 6 * u;
     for (const ln of ll) { ctx.fillText(ln, ix + 3 * u, ly); ly += 4.2 * u; }
   }
-  // footer: logo, rating, CLEAR stamp
-  ctx.fillStyle = "rgba(27,35,56,.13)"; ctx.fillRect(ix, footTop, iw, Math.max(1, .2 * u));
-  const fyc = footTop + 9 * u;
-  drawLogoMark(ctx, ix, fyc - 1.6 * u, 4.4 * u, INK);
-  ctx.textBaseline = "middle"; ctx.textAlign = "left"; ctx.font = `600 ${1.9 * u}px ${FN}`; ctx.fillStyle = "#9AA0AE"; spaced(ctx, "NAZO COLLECTION", .32 * u, ix, fyc + 3.6 * u);
   const r = Math.max(0, Math.min(5, +c.rating || 0));
-  if (r) { ctx.font = `700 ${3.1 * u}px ${FU}`; ctx.textAlign = "left"; let sx = ix + 30 * u; const sw = ctx.measureText("★").width; for (let k = 1; k <= 5; k++) { ctx.fillStyle = k <= r ? "#C9960B" : "rgba(201,150,11,.25)"; ctx.fillText("★", sx, fyc); sx += sw; } }
-  drawClear(ctx, ix + iw - 9.4 * u, fyc - .4 * u, 8.6 * u, hash(c.id || c.title || "x"), ds.length ? fmtD(ds[ds.length - 1]) : "");
+  if (r) { ctx.textBaseline = "top"; ctx.font = `700 ${3 * u}px ${FU}`; ctx.textAlign = "left"; let sx = ix + tw + 4 * u; const sw = ctx.measureText("★").width; for (let k = 1; k <= 5; k++) { ctx.fillStyle = k <= r ? "#C9960B" : "rgba(201,150,11,.25)"; ctx.fillText("★", sx, colEnd - .4 * u); sx += sw; } }
+  { const rnd = rng(hash((c.id || c.title || "x") + "st")), sx = ix + tw + 4 * u + (iw - tw - 4 * u) * (.6 + rnd() * .14), sy = Math.min(ty + th - 6 * u, Math.max(ty + 26 * u, colEnd - 8 * u)) + (rnd() - .5) * 4 * u;
+    drawClear(ctx, sx, sy, 12.5 * u, hash(c.id || c.title || "x"), ds.length ? fmtD(ds[ds.length - 1]) : "", -.42 + rnd() * .3, .62); }
   ctx.restore();
 }
 /* scheduler: one bake at a time, highest priority first */
@@ -1025,7 +1031,7 @@ const busyUI = () => !!(raf || (drag && drag.moved) || tilt || (typeof dg !== "u
 async function runJobs() { running = true; while (jobs.length) { if (jobs[0].pri >= 2 && busyUI()) { await sleep(90); continue; } const j = jobs.shift(); try { j.res(await j.fn()); } catch (e) { j.rej(e); } await sleep(0); } running = false; }
 const bakes = new Map();
 function sig(c, kind) {
-  const a = ["v5", c.title, c.organizer, c.no, c.type, c.start, c.end, c.rating, c.pal, c.motif, c.front, c._img, c.eventId, c.tag];
+  const a = ["v9", c.title, c.organizer, c.no, c.type, c.start, c.end, c.rating, c.pal, c.motif, c.front, c._img, c.eventId, c.tag];
   if (kind === "back") a.push(c.venue, c.summary, c.series, c.link, c.id, cDates(c).join(), withNames(c.with));
   return JSON.stringify(a);
 }
