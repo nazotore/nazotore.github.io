@@ -2007,7 +2007,7 @@ const PrintCard = {
   async render() {
     const c = this.c; if (!c) return; const my = ++this.gen;
     const m = this.PX, W = Math.round(148 * m), H = Math.round(100 * m);
-    const cw = Math.round(63 * m), ch = Math.round(88 * m), G = Math.round(3 * m), off = Math.round(.3 * m), bl = Math.round(1.5 * m);
+    const cw = Math.round(63 * m), ch = Math.round(88 * m), G = Math.round(3 * m), off = Math.round(-.7 * m), bl = Math.round(1.5 * m);
     let fr, bk; try { [fr, bk] = await Promise.all([toCanvas(c, cw, "front", bl), toCanvas(c, cw, "back", bl)]); } catch (e) { const w = $("#pcWait"); if (w) w.textContent = "つくれませんでした。もう一度ひらいてください"; return; }
     if (my !== this.gen) return;
     let cv = this.cv; if (!cv || cv.width !== H || cv.height !== W) { if (cv) cv.width = cv.height = 0; cv = this.cv = document.createElement("canvas"); cv.width = H; cv.height = W; }
@@ -2015,6 +2015,8 @@ const PrintCard = {
     const fx = Math.round((W - 2 * cw - 2 * G - off) / 2), fy = Math.round((H - ch) / 2), fold = fx + cw + G, bx = fold + G + off;
     x.drawImage(fr, fx - bl, fy - bl);
     x.drawImage(bk, bx - bl, fy - bl);
+    // 切り取り線（ぺたろぐと同じ）：表の絵のふちに細い線。縦を切っても横の線が残る
+    x.save(); x.strokeStyle = "#8C929C"; x.lineWidth = Math.max(2, .15 * m); x.strokeRect(fx, fy, cw, ch); x.restore();
     x.strokeStyle = "#111"; x.lineWidth = Math.max(3, Math.round(.25 * m)); x.lineCap = "butt"; const o = 2.2 * m, l = 3 * m; x.beginPath();
     for (const [cx, cy, sx, sy] of [[fx, fy, -1, -1], [fx + cw, fy, 1, -1], [fx, fy + ch, -1, 1], [fx + cw, fy + ch, 1, 1]]) { if (sx < 0) { x.moveTo(cx - o, cy); x.lineTo(cx - o - l, cy); } x.moveTo(cx, cy + sy * o); x.lineTo(cx, cy + sy * (o + l)); }
     // 折り目側の角にもトンボ（表の塗り足しの外〜裏の塗り足しの手前、折り線をまたぐ短い線）
@@ -2067,7 +2069,7 @@ const PrintCard = {
     d.innerHTML = `<div class="pv-top"><div class="pv-t">印刷用（はがき・実寸）</div><button class="btn sm" type="button" id="pcX">閉じる</button></div>
       <div class="pc-body"><div class="pc-prev"><img id="pcImg" alt="印刷用の画像（長押しでも保存できます）"><div class="pc-wait" id="pcWait"><span class="spin"></span> つくっています…</div></div>
         <div class="row2"><button class="btn primary" type="button" id="pcSave">画像を保存</button><button class="btn" type="button" id="pcPdf">PDFを保存</button></div>
-        <ol class="pc-how"><li><b>コンビニで印刷：</b>「画像を保存」→ セブン‐イレブンは「ネットプリント」、ローソン・ファミマは「ネットワークプリント」で、用紙を <b>はがき・カラー</b> にして印刷（実寸で出ます）</li><li><b>家のプリンターで印刷：</b>「PDFを保存」→ 無地のはがき用紙に <b>実際のサイズ（100%）</b> で印刷。「用紙に合わせる」などの拡大・縮小はオフに</li><li>右のものさしが50mmなら実寸です</li><li>コンビニのはがきは裏に郵便番号の枠があり、光に透かすとうっすら見えます（ふつうに持つぶんにはほぼ見えません）</li><li>作り方：点線で山折り → 内側をテープのりで貼る（水のりは乾かないので×） → 折り目側の線を先に切って、上から押さえて貼り直す → 残りの3辺を切る</li><li>切るときは、外の黒いトンボを目印に、表面の絵のふちに沿って切るとちょうど63×88mmになります（まわり1.5mmは絵のふちの色をのばしてあるので、少しずれても白が出ません）</li></ol></div>`;
+        <ol class="pc-how"><li><b>コンビニで印刷：</b>「画像を保存」→ セブン‐イレブンは「ネットプリント」、ローソン・ファミマは「ネットワークプリント」で、用紙を <b>はがき・カラー</b> にして印刷（実寸で出ます）</li><li><b>家のプリンターで印刷：</b>「PDFを保存」→ 無地のはがき用紙に <b>実際のサイズ（100%）</b> で印刷。「用紙に合わせる」などの拡大・縮小はオフに</li><li>右のものさしが50mmなら実寸です</li><li>コンビニのはがきは裏に郵便番号の枠があり、光に透かすとうっすら見えます（ふつうに持つぶんにはほぼ見えません）</li><li>作り方：点線で山折り → 内側をテープのりで貼る（水のりは乾かないので×） → 折り目側の線を先に切って、上から押さえて貼り直す → 残りの3辺を切る</li><li>切るときは、表面の絵のまわりの細い線（トンボが目印）に沿って切るとちょうど63×88mmになります（線の外側1.5mmも絵のふちの色をのばしてあるので、少しずれても白が出ません）</li></ol></div>`;
     $("#pcX").onclick = () => { d.hidden = true; this.c = null; this.gen++; this.blob = null; if (this.burl) { URL.revokeObjectURL(this.burl); this.burl = null; } if (this.cv) { this.cv.width = this.cv.height = 0; this.cv = null; } d.innerHTML = ""; };
     $("#pcSave").onclick = () => this.save("jpg"); $("#pcPdf").onclick = () => this.save("pdf");
     this.render();
