@@ -2016,7 +2016,7 @@ const PrintCard = {
   async render() {
     const c = this.c; if (!c) return; const my = ++this.gen;
     const m = this.PX, W = Math.round(148 * m), H = Math.round(100 * m);
-    const cw = Math.round(63 * m), ch = Math.round(88 * m), G = Math.round(3 * m), off = Math.round(-.7 * m), bl = Math.round(1.5 * m);
+    const cw = Math.round(63 * m), ch = Math.round(88 * m), G = Math.round(3 * m), off = Math.round(-.2 * m), bl = Math.round(1.5 * m);
     let fr, bk; try { [fr, bk] = await Promise.all([toCanvas(c, cw, "front", bl), toCanvas(c, cw, "back", bl)]); } catch (e) { const w = $("#pcWait"); if (w) w.textContent = "つくれませんでした。もう一度ひらいてください"; return; }
     if (my !== this.gen) return;
     let cv = this.cv; if (!cv || cv.width !== H || cv.height !== W) { if (cv) cv.width = cv.height = 0; cv = this.cv = document.createElement("canvas"); cv.width = H; cv.height = W; }
