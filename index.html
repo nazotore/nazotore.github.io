@@ -2102,23 +2102,13 @@ function normType(k) {
   if (/周遊/.test(f)) return "周遊型";
   return "その他";
 }
-// 複数の編・作品をまとめていた特集を分けたので、まとめ側を指していたカード・予定を該当する編へつなぎ直す（1回だけ）
-setTimeout(function relinkEv() {
-  try { if (localStorage.getItem("nazotore.v1.evsplit") === "1") return; } catch (e) { return; }
-  if (!S.cards.length && !S.plans.length) { setTimeout(relinkEv, 3000); return; }
-  const kids = id => EVALL.filter(x => x.id.startsWith(id + "-") && !x.id.endsWith("-x"));
-  const pick = (parent, title) => {
-    const t = nz(title || ""); let best = null, bl = 0;
-    for (const k of kids(parent.id)) {
-      let i = 0; while (i < k.t.length && i < parent.t.length && k.t[i] === parent.t[i]) i++;
-      const part = k.t.slice(i).trim();
-      for (const cand of [k.t, part, part.replace(/^(#\s*\d+|vol\.?\s*\d+|case\s*\d+)\s*/i, "")]) { const n = nz(cand); if (n && n.length > bl && t.includes(n)) { best = k; bl = n.length; } }
-    }
-    return best;
-  };
-  const fix = (col, list) => list.forEach(o => { const p = o.eventId && EVMAP.get(o.eventId); if (!p || !p.h) return; const k = pick(p, o.title); if (k) put(col, o.id, { ...stripId(o), eventId: k.id }).catch(() => {}); });
-  fix("cards", S.cards); fix("plans", S.plans);
-  try { localStorage.setItem("nazotore.v1.evsplit", "1"); } catch (e) {}
+// 登録済みのカード・予定は変えない。前の版で「編」へつなぎ直してしまった分は、元のつながりに戻す（1回だけ）
+setTimeout(function undoRelink() {
+  try { if (localStorage.getItem("nazotore.v1.evundo") === "1") return; } catch (e) { return; }
+  if (!S.cards.length && !S.plans.length) { setTimeout(undoRelink, 3000); return; }
+  const back = (col, list) => list.forEach(o => { const m = /^(.+)-\d+$/.exec(o.eventId || ""); if (!m) return; const p = EVMAP.get(m[1]); if (!p || !p.h) return; put(col, o.id, { ...stripId(o), eventId: p.id }).catch(() => {}); });
+  back("cards", S.cards); back("plans", S.plans);
+  try { localStorage.setItem("nazotore.v1.evundo", "1"); } catch (e) {}
 }, 6500);
 const customTypes = () => [...new Set(S.cards.map(c => c.type).filter(t => t && !TYPES.includes(t)))];
 // 以前の値を新しい分類に置きかえ（1回だけ）
