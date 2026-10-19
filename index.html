@@ -527,7 +527,7 @@ img.instant{transition:none!important}
 .f-side{display:grid;gap:10px;align-content:start}
 .upl{position:relative;display:inline-flex}
 .upl input{position:absolute;inset:0;opacity:0;cursor:pointer}
-.f-note{font-size:12px;color:var(--muted);line-height:1.55;margin:0}
+.src-row{display:flex;gap:8px;align-items:center}.src-row input{flex:1;min-width:0;box-sizing:border-box;border:0;background:var(--panel-2);border-radius:12px;padding:11px 12px;font-size:16px;min-height:46px;outline:none}.src-row input:focus-visible{box-shadow:0 0 0 2.5px var(--cyan)}.src-row .btn{flex:none}.f-note{font-size:12px;color:var(--muted);line-height:1.55;margin:0}
 .btnrow{display:flex;flex-wrap:wrap;gap:8px}
 .ai-row{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
 .ai-status{font-size:12.5px;color:var(--muted);min-height:1.4em}
@@ -2128,6 +2128,7 @@ function openCardForm(src) {
         <p class="f-note" id="uplNote">自作の表面デザインを入れると、そのままカードになります。縦長（63:88）がぴったりです。</p>
         <div class="btnrow"><button class="btn sm ghost" type="button" id="shuffle">絵柄を変える</button><button class="btn sm ghost danger" type="button" id="imgClear" hidden>画像を外す</button></div>
       </div></div>
+    <div class="box" id="srcBox"><h4>公式ページのURLから自動入力</h4><div class="src-row"><input id="f_src" type="url" inputmode="url" autocomplete="off" placeholder="https:// を貼ると自動で入ります"><button class="btn sm primary" type="button" id="srcBtn">読み込む</button></div><p class="f-note" id="srcSt" style="margin:8px 0 0">URLがないときは、このまま下に手で入力してください</p></div>
     <div class="fld"><label for="f_title">イベント名 <span class="req">*</span><span class="unsure-tag">要確認</span></label><input id="f_title" maxlength="80" placeholder="例：東京謎解きトラベル" value="${esc(init.title || "")}"></div>
     <div class="box" id="aiBox"><h4><span class="ai">AI</span>企画会社・期間・要約を自動入力</h4>
       <p class="f-note" style="margin:0 0 10px">AIはWebを見られません。公式ページの説明文を貼るか、告知画像を表面画像に入れると正確になります。空欄だけを埋め、自信のない項目には「要確認」が付きます。</p>
@@ -2150,6 +2151,46 @@ function openCardForm(src) {
     <div class="f-actions"><button class="btn primary" type="submit" id="saveBtn">${editing ? "変更を保存" : "カードを棚に追加"}</button>${editing ? `<span id="delWrap"><button class="btn ghost danger" type="button" id="delBtn">削除</button></span>` : ""}</div>
   </form>`, { tall: true });
   const F_ = id => $("#" + id, b);
+  // 公式ページのURLから自動入力
+  {
+    const NZF = "https://xwhmmgqmiefnhcdpbuoz.supabase.co/functions/v1/nazo-fetch";
+    const box = F_("f_src"), btn = F_("srcBtn"), st = F_("srcSt");
+    let busy = false, lastSrc = "";
+    const isUrl = v => /^https?:\/\/[^\s]+\.[^\s]+/i.test(v);
+    const fill = (id, v, unsure) => { const el = F_(id); if (!el || !v) return false; if (el.value.trim() && touched.has(id)) return false; if (el.value.trim() && id !== "f_start" && id !== "f_end") return false; el.value = v; touched.add(id); const f = el.closest(".fld"); if (f) f.classList.toggle("unsure", !!unsure); return true; };
+    const ORGS = [...new Set(EV.map(e => e.o).filter(o => o && o.length >= 2))];
+    const guessOrg = (d) => { const hay = [d.ogTitle, d.title, d.siteName, d.description, (d.text || "").slice(0, 4000)].join("\n"); let best = "", bs = 0; for (const o of ORGS) { let n = hay.split(o).length - 1; if (!n) continue; if ((d.title || "").includes(o) || (d.siteName || "").includes(o)) n += 5; if (n > bs) { bs = n; best = o; } } return best || d.siteName || ""; };
+    const guessType = (d) => { for (const s of [d.description || "", d.text || ""]) { const m = /街歩き|周遊|ルーム型|ホール型|持ち帰り|オンライン|イマーシブ|謎解きカフェ/.exec(s); if (m) return normType(m[0] === "周遊" ? "周遊型" : m[0]); } return ""; };
+    const cleanTitle = t => String(t || "").replace(/^[「『]|[」』]$/g, "").split(/\s+[|｜]\s+|\s+[-–—]\s+/)[0].trim();
+    async function load() {
+      const u = box.value.trim(); if (!isUrl(u) || busy || u === lastSrc) return;
+      busy = true; lastSrc = u; btn.disabled = true; st.textContent = "読み込み中…";
+      try {
+        const r = await fetch(NZF + "?url=" + encodeURIComponent(u)); const d = await r.json().catch(() => ({}));
+        if (!r.ok || d.error) throw new Error(d.error || "HTTP " + r.status);
+        const got = [];
+        if (fill("f_title", cleanTitle(d.ogTitle || d.title))) got.push("イベント名");
+        if (fill("f_org", guessOrg(d), true)) got.push("企画会社");
+        if (d.period) { if (fill("f_start", d.period[0], true)) got.push("開催開始"); if (fill("f_end", d.period[1], true)) got.push("開催終了"); }
+        if (fill("f_price", d.price, true)) got.push("料金");
+        const ty = guessType(d); if (ty && !F_("f_type").value) { F_("f_type").value = ty; touched.add("f_type"); F_("f_type").closest(".fld")?.classList.add("unsure"); got.push("形式"); }
+        if (fill("f_summary", String(d.description || "").slice(0, 160), true)) got.push("ストーリー");
+        if (!F_("f_url").value.trim()) { F_("f_url").value = d.url || u; touched.add("f_url"); }
+        const pz = F_("f_paste"); if (pz && !pz.value.trim()) pz.value = String(d.text || "").slice(0, 6000);
+        if (d.image && !pickedFile && !(init.front && !removeImg)) {
+          try { const ir = await fetch(NZF + "?img=" + encodeURIComponent(d.image)); if (ir.ok && /^image\//.test(ir.headers.get("content-type") || "")) { const b = await ir.blob(); const f = new File([b], "front." + ((b.type.split("/")[1] || "jpg").replace("jpeg", "jpg").replace(/\+.*/, "")), { type: b.type }); if (pickedUrl) URL.revokeObjectURL(pickedUrl); pickedFile = f; pickedUrl = URL.createObjectURL(f); removeImg = false; got.push("表面画像"); } } catch (e) {}
+        }
+        refresh();
+        st.textContent = got.length ? "入りました：" + got.join("・") + "。「要確認」の項目は見直してください" : "このページからは読み取れませんでした。下に手で入力してください";
+      } catch (e) { lastSrc = ""; st.textContent = "読み込めませんでした。下に手で入力してください"; }
+      finally { busy = false; btn.disabled = false; }
+    }
+    btn.onclick = () => { lastSrc = ""; load(); };
+    box.addEventListener("paste", () => setTimeout(load, 30));
+    box.addEventListener("change", load);
+    box.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); lastSrc = ""; load(); } });
+  }
+
   { const ts = F_("f_type"), tn = F_("f_type_new"); if (ts && tn) ts.addEventListener("change", () => { tn.hidden = ts.value !== "__add"; if (!tn.hidden) setTimeout(() => tn.focus(), 30); }); }
   const dates = datesEditor(F_("f_dates"), cDates(init).length ? cDates(init) : [""]);
   const withP = friendPicker(F_("f_with"), init.with || []);
