@@ -930,7 +930,7 @@ const FN = 'Jost,"Zen Kaku Gothic New",sans-serif';
 const RATIO = 88 / 63;
 const THUMB = 240, BIG = 760;
 let SHELF_W = 520;
-const loadImg = src => new Promise((res, rej) => { const im = new Image(); im.decoding = "async"; im.onload = () => res(im); im.onerror = rej; im.src = src; });
+const loadImg = src => new Promise((res, rej) => { const im = new Image(); im.decoding = "async"; const t = setTimeout(() => rej(new Error("img timeout")), 12000); im.onload = () => { clearTimeout(t); res(im); }; im.onerror = e => { clearTimeout(t); rej(e); }; im.src = src; });
 const motifCache = new Map();
 function motifImage(motif, pi) {
   const key = motif + "|" + pi;
@@ -1278,8 +1278,9 @@ async function drawBack(ctx, c, ox, oy, W, H, bleed = 0) {
 /* scheduler: one bake at a time, highest priority first */
 const jobs = []; let running = false;
 function enqueue(pri, fn) { return new Promise((res, rej) => { jobs.push({ pri, fn, res, rej }); jobs.sort((a, b) => a.pri - b.pri); if (!running) runJobs(); }); }
-const busyUI = () => !!(raf || (drag && drag.moved) || tilt || (typeof dg !== "undefined" && dg && dg.active));
-async function runJobs() { running = true; while (jobs.length) { if (jobs[0].pri >= 2 && busyUI()) { await sleep(90); continue; } const j = jobs.shift(); try { j.res(await j.fn()); } catch (e) { j.rej(e); } await sleep(0); } running = false; }
+const busyUI = () => !!(raf || (drag && drag.moved) || (tilt && performance.now() - tilt.t < 4000) || (typeof dg !== "undefined" && dg && dg.active));
+// 画面が動いている間は小さい画像づくりを後回しにするが、最大2.5秒まで（指の状態が残っても止まり続けないように）
+async function runJobs() { running = true; let waited = 0; while (jobs.length) { if (jobs[0].pri >= 2 && busyUI() && waited < 2500) { await sleep(90); waited += 90; continue; } waited = 0; const j = jobs.shift(); try { j.res(await Promise.race([j.fn(), sleep(20000).then(() => { throw new Error("timeout"); })])); } catch (e) { j.rej(e); } await sleep(0); } running = false; }
 const bakes = new Map();
 function sig(c, kind) {
   const a = ["v18", c.title, c.organizer, c.no, c.type, c.start, c.end, c.rating, c.pal, c.motif, c.front, c._img, c.eventId, c.tag];
@@ -1881,7 +1882,7 @@ function buildModal(c, keepFlip) {
   mWrap.classList.toggle("flipped-wrap", flipped);
 }
 function refreshModal() { const c = S.cards.find(x => x.id === modalId); if (!c) { closeModal(); return; } buildModal(c, true); }
-function closeModal() { $("#modal").hidden = true; if ($("#sheetWrap").hidden) document.body.style.overflow = ""; modalId = null; }
+function closeModal() { try { tilt = null; } catch (_) {} $("#modal").hidden = true; if ($("#sheetWrap").hidden) document.body.style.overflow = ""; modalId = null; }
 function flipModal() { mCard.classList.toggle("flipped"); mWrap.classList.toggle("flipped-wrap", mCard.classList.contains("flipped")); resetTilt(); }
 $$("[data-mclose]").forEach(el => el.addEventListener("click", closeModal));
 $("#mFlip").onclick = flipModal;
