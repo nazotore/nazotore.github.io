@@ -1004,6 +1004,7 @@ async function altSrcs(src) {
 }
 async function loadFront0(src) {
   let why = "";
+  if (/^(blob:|img\/)/.test(src)) { try { return await loadImg(src); } catch (e0) { why = "img"; } }
   for (const wait of [0, 700, 1800, 4000]) { if (wait) await sleep(wait); try { const r = await fetch(src, wait ? { cache: "reload" } : undefined); if (!r.ok) throw new Error("HTTP " + r.status); return await createImageBitmap(await r.blob()); } catch (e1) { why = String((e1 && e1.message) || e1); } }
   try { return await loadImg(src); } catch (e2) { why += " / img"; }
   for (const alt of await altSrcs(src)) { try { const r = await fetch(alt); if (r.ok) return await createImageBitmap(await r.blob()); } catch (e3) {} try { return await loadImg(alt); } catch (e4) {} }
@@ -1322,8 +1323,16 @@ function setImg(img, p) {
 }
 const lazyIO = new IntersectionObserver(ents => { for (const e of ents) if (e.isIntersecting) { lazyIO.unobserve(e.target); e.target._load && e.target._load(); } }, { rootMargin: "300px" });
 function lazy(img, fn) { img._load = () => setImg(img, fn()); lazyIO.observe(img); }
+// 写真を入れたカードは、キャンバスで描き直さずに元の画像をそのまま出す（速い＆iPhoneで黒くならない）
+function rawThumb(im, c) {
+  const tok = (im._tok = (im._tok || 0) + 1);
+  im.classList.remove("in", "instant"); im.style.objectFit = "cover";
+  im.onerror = () => { if (im._tok !== tok) return; im.onerror = null; im.style.objectFit = ""; setImg(im, bake(c, THUMB, "front", 4)); };
+  im.onload = () => { if (im._tok === tok) im.classList.add("in"); };
+  (c._img ? Promise.resolve(c._img) : frontSrc(c.front)).then(u => { if (im._tok === tok) im.src = u; }).catch(() => im.onerror && im.onerror());
+}
 function hydrateThumbs(root) {
-  $$("img[data-card]", root).forEach(im => { const c = S.cards.find(x => x.id === im.dataset.card); if (c) lazy(im, () => bake(c, THUMB, "front", 4)); });
+  $$("img[data-card]", root).forEach(im => { const c = S.cards.find(x => x.id === im.dataset.card); if (!c) return; if (c.front || c._img) rawThumb(im, c); else lazy(im, () => bake(c, THUMB, "front", 4)); });
   $$("img[data-ev]", root).forEach(im => { const e = EVMAP.get(im.dataset.ev); if (e) lazy(im, () => bake(evCard(e), THUMB, "front", 6)); });
   $$("img[data-plan]", root).forEach(im => { const p = S.plans.find(x => x.id === im.dataset.plan); if (p) lazy(im, () => bake(planCard(p), THUMB, "front", 5)); });
 }
